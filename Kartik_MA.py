@@ -10,7 +10,7 @@ from sklearn.metrics import confusion_matrix, accuracy_score
 import numpy as np
 
 # --- 1. SETUP & DATA LOADING ---
-st.set_page_config(page_title="Loan Default Marketing Analytics", layout="wide")
+st.set_page_config(page_title="loan Default Marketing Analytics", layout="wide")
 
 # Function to load data
 @st.cache_data
