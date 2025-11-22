@@ -10,7 +10,7 @@ from sklearn.metrics import confusion_matrix, accuracy_score
 import numpy as np
 
 # --- 1. SETUP & DATA LOADING ---
-st.set_page_config(page_title="loan Default Marketing Analytics", layout="wide")
+st.set_page_config(page_title="Loan Default Marketing Analytics", layout="wide")
 
 # Function to load data
 @st.cache_data
@@ -113,4 +113,75 @@ if df is not None:
     # Chart 2: Risk by Credit History
     with row2_col2:
         cred_risk = get_risk_by_category('Credit_History')
-        fig_cred = px.bar(cred_risk, x='
+        fig_cred = px.bar(cred_risk, x='Credit_History', y='Default Rate (%)',
+                          title="Risk by Credit History",
+                          color='Default Rate (%)', 
+                          color_continuous_scale='Electric') # <--- THEME 5: ELECTRIC
+        st.plotly_chart(fig_cred, use_container_width=True)
+
+    st.divider()
+    
+    # --- CONFUSION MATRIX ANALYSIS (Layout: Stacked) ---
+    st.subheader("Model Performance: Confusion Matrix")
+    
+    st.markdown("##### Predicted vs. Actual Outcomes")
+    
+    cm_df = pd.DataFrame(cm, 
+                         index=['Actual No Default (No)', 'Actual Default (Yes)'], 
+                         columns=['Predicted No Default (No)', 'Predicted Default (Yes)'])
+    
+    st.dataframe(cm_df, use_container_width=True)
+    
+    st.markdown("##### Understanding the Confusion Matrix Values") 
+    st.markdown(f"""
+    This matrix evaluates the **Decision Tree Model's** performance in classifying customers:
+    
+    * **True Negative (TN): {TN}** - The model **Correctly** predicted **No Default**. (Good)
+    * **True Positive (TP): {TP}** - The model **Correctly** predicted **Default (Yes)**. (Good)
+    * **False Positive (FP): {FP}** - The model **Incorrectly** predicted **Default (Yes)** when the customer *didn't* default. This is a **Type I Error** (Risk: Turning away a good customer).
+    * **False Negative (FN): {FN}** - The model **Incorrectly** predicted **No Default** when the customer *did* default. This is a **Type II Error** (Major Risk: Approving a loan that will default).
+    
+    A good model for loan risk minimizes **False Negatives (FN)**.
+    """)
+        
+    st.divider()
+
+    # --- BOTTOM ROW: THE PROFILE (Layout: Insight Wider) ---
+    st.subheader("The Profile: High Risk Identification")
+
+    insight_col, table_col = st.columns([2, 1])
+
+    with insight_col:
+        st.info("💡 **AI Insight: Strategic Recommendations**")
+
+        highest_risk_emp = emp_risk.iloc[0]['Employment_Type']
+        highest_risk_cred = cred_risk.iloc[0]['Credit_History']
+
+        insight_text = f"""
+        The analysis indicates a strong correlation between employment stability and loan repayment.
+
+        **Key Observations:**
+        - **Primary Risk Factor:** Customers with **{highest_risk_emp}** status show the highest propensity to default.
+        - **Secondary Signal:** A **{highest_risk_cred}** in credit history is a critical warning sign.
+
+        **Model Check:**
+        The model made **{FN} False Negatives**, meaning {FN} customers who *actually defaulted* were incorrectly predicted as safe. This is a primary area for model improvement.
+        
+        **Recommendation:**
+        Marketing campaigns for loans should filter out unemployed profiles with credit delays to lower the overall **{default_rate:.1f}%** default rate.
+        """
+        st.markdown(insight_text)
+
+    with table_col:
+        st.markdown("##### Top 5 Riskiest Profiles")
+        top_risky = df.sort_values(by='Risk_Probability', ascending=False).head(5)
+
+        display_cols = ['Employment_Type', 'Credit_History', 'Income_Bracket', 'Risk_Probability', 'Default']
+
+        display_df = top_risky[display_cols].copy()
+        display_df['Risk_Probability'] = display_df['Risk_Probability'].apply(lambda x: f"{x*100:.1f}%")
+
+        st.dataframe(display_df, use_container_width=True)
+
+else:
+    st.warning("Please ensure 'loan_default.csv' is in the same directory and run the application using: `streamlit run loan_default.py`")
