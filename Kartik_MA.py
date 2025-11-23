@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
-"""loan_default.py - Final Code with Theme 5 (Cool Tones)"""
+"""loan_default.py - Final Code with Confusion Matrix and Theme 1 (Bright)"""
 
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import confusion_matrix, accuracy_score 
 import numpy as np
 
 # --- 1. SETUP & DATA LOADING ---
-st.set_page_config(page_title="loan Default Marketing Analytics", layout="wide")
+st.set_page_config(page_title="Loan Default Marketing Analytics", layout="wide")
 
 # Function to load data
 @st.cache_data
 def load_data():
     try:
-        # NOTE: Using 'loan_default.csv' for robust Streamlit Cloud deployment
-        # Ensure 'loan_default.csv' is committed to your GitHub repository!
-        df = pd.read_excel('loan_default.csv') 
+        # NOTE: Ensure 'loan_default.xlsx' is in the same folder as this script
+        df = pd.read_excel('loan_default.xlsx')
         return df
     except FileNotFoundError:
-        st.error("File 'loan_default.csv' not found. Please ensure the CSV data file is in the repository.")
+        st.error("File 'loan_default.xlsx' not found. Please place the excel in the directory.")
         return None
 
 df = load_data()
@@ -40,7 +40,7 @@ if df is not None:
     X = df_model.drop('Default', axis=1)
     y = df_model['Default']
 
-    # Train a simple Decision Tree (max_depth=5)
+    # Train a simple Decision Tree (max_depth=5 to prevent overfitting)
     clf = DecisionTreeClassifier(max_depth=5, random_state=42)
     clf.fit(X, y)
 
@@ -48,16 +48,22 @@ if df is not None:
     yes_index = list(le_dict['Default'].classes_).index('Yes')
     df['Risk_Probability'] = clf.predict_proba(X)[:, yes_index]
 
-    # --- Confusion Matrix and Metrics Calculation ---
+    # --- NEW: Calculate Confusion Matrix and Metrics ---
     y_pred = clf.predict(X)
+    
+    # Calculate the Confusion Matrix (format: [[TN, FP], [FN, TP]])
     cm = confusion_matrix(y, y_pred)
     
-    TN = cm[0, 0] 
-    FP = cm[0, 1] 
-    FN = cm[1, 0] 
-    TP = cm[1, 1] 
+    # Extract values
+    TN = cm[0, 0] # True Negative
+    FP = cm[0, 1] # False Positive
+    FN = cm[1, 0] # False Negative
+    TP = cm[1, 1] # True Positive
+    
+    # Calculate Metrics
     accuracy = accuracy_score(y, y_pred)
     
+    # Check for division by zero before calculating rates
     total_actual_no = TN + FP
     total_actual_yes = FN + TP
 
@@ -88,17 +94,16 @@ if df is not None:
 
     st.divider()
 
+    # --- MIDDLE ROW: THE DRIVERS (Bar Charts - Theme 1 Applied) ---
+    st.subheader("The Drivers: Risk Analysis")
+
+    row2_col1, row2_col2 = st.columns(2)
+
     # Helper function to calculate risk rate by category
     def get_risk_by_category(column_name):
         risk_df = df.groupby(column_name)['Default'].apply(lambda x: (x == 'Yes').sum() / len(x) * 100).reset_index()
         risk_df.columns = [column_name, 'Default Rate (%)']
         return risk_df.sort_values('Default Rate (%)', ascending=False)
-
-
-    # --- MIDDLE ROW: THE DRIVERS (Bar Charts - Theme 5 Applied) ---
-    st.subheader("The Drivers: Risk Analysis")
-
-    row2_col1, row2_col2 = st.columns(2)
 
     # Chart 1: Risk by Employment
     with row2_col1:
@@ -106,7 +111,7 @@ if df is not None:
         fig_emp = px.bar(emp_risk, x='Employment_Type', y='Default Rate (%)',
                          title="Risk by Employment Type",
                          color='Default Rate (%)', 
-                         color_continuous_scale='Electric') # <--- THEME 5: ELECTRIC
+                         color_continuous_scale='Plasma') # <--- THEME 1: PLASMA
         st.plotly_chart(fig_emp, use_container_width=True)
 
     # Chart 2: Risk by Credit History
@@ -115,44 +120,62 @@ if df is not None:
         fig_cred = px.bar(cred_risk, x='Credit_History', y='Default Rate (%)',
                           title="Risk by Credit History",
                           color='Default Rate (%)', 
-                          color_continuous_scale='Electric') # <--- THEME 5: ELECTRIC
+                          color_continuous_scale='Plasma') # <--- THEME 1: PLASMA
         st.plotly_chart(fig_cred, use_container_width=True)
 
     st.divider()
     
-    # --- CONFUSION MATRIX ANALYSIS (Layout: Stacked) ---
+    # --- CONFUSION MATRIX ANALYSIS ---
     st.subheader("Model Performance: Confusion Matrix")
     
-    st.markdown("##### Predicted vs. Actual Outcomes")
+    cm_col, explanation_col = st.columns([1, 2])
+
+    with cm_col:
+        st.markdown("**Predicted vs. Actual Outcomes**")
+        # Create a DataFrame for displaying the matrix beautifully
+        cm_df = pd.DataFrame(cm, 
+                             index=['Actual No Default (No)', 'Actual Default (Yes)'], 
+                             columns=['Predicted No Default (No)', 'Predicted Default (Yes)'])
+        st.dataframe(cm_df)
     
-    cm_df = pd.DataFrame(cm, 
-                         index=['Actual No Default (No)', 'Actual Default (Yes)'], 
-                         columns=['Predicted No Default (No)', 'Predicted Default (Yes)'])
-    
-    st.dataframe(cm_df, use_container_width=True)
-    
-    st.markdown("##### Understanding the Confusion Matrix Values") 
-    st.markdown(f"""
-    This matrix evaluates the **Decision Tree Model's** performance in classifying customers:
-    
-    * **True Negative (TN): {TN}** - The model **Correctly** predicted **No Default**. (Good)
-    * **True Positive (TP): {TP}** - The model **Correctly** predicted **Default (Yes)**. (Good)
-    * **False Positive (FP): {FP}** - The model **Incorrectly** predicted **Default (Yes)** when the customer *didn't* default. This is a **Type I Error** (Risk: Turning away a good customer).
-    * **False Negative (FN): {FN}** - The model **Incorrectly** predicted **No Default** when the customer *did* default. This is a **Type II Error** (Major Risk: Approving a loan that will default).
-    
-    A good model for loan risk minimizes **False Negatives (FN)**.
-    """)
+    with explanation_col:
+        st.markdown("**Understanding the Confusion Matrix Values**")
+        st.markdown(f"""
+        This matrix evaluates the **Decision Tree Model's** performance in classifying customers:
+        
+        * **True Negative (TN): {TN}** - The model **Correctly** predicted **No Default**. (Good)
+        * **True Positive (TP): {TP}** - The model **Correctly** predicted **Default (Yes)**. (Good)
+        * **False Positive (FP): {FP}** - The model **Incorrectly** predicted **Default (Yes)** when the customer *didn't* default. This is a **Type I Error** (Risk: Turning away a good customer).
+        * **False Negative (FN): {FN}** - The model **Incorrectly** predicted **No Default** when the customer *did* default. This is a **Type II Error** (Major Risk: Approving a loan that will default).
+        
+        A good model for loan risk minimizes **False Negatives (FN)**.
+        """)
         
     st.divider()
 
-    # --- BOTTOM ROW: THE PROFILE (Layout: Insight Wider) ---
+    # --- BOTTOM ROW: THE PROFILE (Table & Insight) ---
     st.subheader("The Profile: High Risk Identification")
 
-    insight_col, table_col = st.columns([2, 1])
+    row3_col1, row3_col2 = st.columns([2, 1])
 
-    with insight_col:
-        st.info("💡 **AI Insight: Strategic Recommendations**")
+    with row3_col1:
+        st.markdown("**Top 5 Riskiest Profiles (Highest Predicted Probability)**")
+        # Sort by Risk Probability (Descending) and take top 5
+        top_risky = df.sort_values(by='Risk_Probability', ascending=False).head(5)
 
+        # Select columns to display suitable for a report
+        display_cols = ['Employment_Type', 'Credit_History', 'Income_Bracket', 'Education_Level', 'Risk_Probability', 'Default']
+
+        # Format the probability as percentage for display
+        display_df = top_risky[display_cols].copy()
+        display_df['Risk_Probability'] = display_df['Risk_Probability'].apply(lambda x: f"{x*100:.1f}%")
+
+        st.dataframe(display_df, use_container_width=True)
+
+    with row3_col2:
+        st.info("💡 **AI Insight**")
+
+        # Dynamic Insight Generation
         highest_risk_emp = emp_risk.iloc[0]['Employment_Type']
         highest_risk_cred = cred_risk.iloc[0]['Credit_History']
 
@@ -171,16 +194,7 @@ if df is not None:
         """
         st.markdown(insight_text)
 
-    with table_col:
-        st.markdown("##### Top 5 Riskiest Profiles")
-        top_risky = df.sort_values(by='Risk_Probability', ascending=False).head(5)
-
-        display_cols = ['Employment_Type', 'Credit_History', 'Income_Bracket', 'Risk_Probability', 'Default']
-
-        display_df = top_risky[display_cols].copy()
-        display_df['Risk_Probability'] = display_df['Risk_Probability'].apply(lambda x: f"{x*100:.1f}%")
-
-        st.dataframe(display_df, use_container_width=True)
-
 else:
-    st.warning("Please ensure 'loan_default.csv' is in the same directory and run the application using: `streamlit run loan_default.py`")
+    st.warning("Please ensure 'loan_default.xlsx' is in the same directory and run the application using: `streamlit run loan_default.py`")
+
+# To run the app: streamlit run loan_default.py
